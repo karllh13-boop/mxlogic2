@@ -1,0 +1,575 @@
+// MxLogic 2 - Prisma Schema
+// Aviation Maintenance Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // Switch to "postgresql" for production
+  url      = env("DATABASE_URL")
+}
+
+// ─── Multi-Tenant: Shop (Organization) ───────────────────────────────────
+
+model Shop {
+  id                   String    @id @default(cuid())
+  name                 String
+  slug                 String    @unique
+  address              String?
+  phone                String?
+  email                String?
+  faaRepairStation     String?   @map("faa_repair_station")
+  timezone             String    @default("US/Eastern")
+  laborRate            Float     @default(85.0) @map("labor_rate")
+  isActive             Boolean   @default(true) @map("is_active")
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  // Subscription / Billing
+  plan                 String    @default("trial") // trial, solo, shop, enterprise
+  stripeCustomerId     String?   @map("stripe_customer_id")
+  stripeSubscriptionId String?   @map("stripe_subscription_id")
+  subscriptionStatus   String    @default("trialing") @map("subscription_status")
+  trialEndsAt          DateTime? @map("trial_ends_at")
+  subscriptionEndsAt   DateTime? @map("subscription_ends_at")
+
+  // Relationships
+  users                User[]
+  customers            Customer[]
+  aircraft             Aircraft[]
+  parts                Part[]
+  timesheetEntries     TimesheetEntry[]
+
+  @@map("shops")
+}
+
+// ─── User / Auth ──────────────────────────────────────────────────────────
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String    @map("password_hash")
+  firstName     String    @map("first_name")
+  lastName      String    @map("last_name")
+  role          String    @default("mechanic") // owner, admin, mechanic, viewer
+  phone         String?
+  faaCertNumber String?   @map("faa_cert_number")
+  faaCertType   String?   @map("faa_cert_type") // AP, IA, Repairman
+  isActive      Boolean   @default(true) @map("is_active")
+  lastLogin     DateTime? @map("last_login")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  // Multi-tenant
+  shopId        String    @map("shop_id")
+  shop          Shop      @relation(fields: [shopId], references: [id])
+
+  // Password reset
+  resetToken        String?   @unique @map("reset_token")
+  resetTokenExpires DateTime? @map("reset_token_expires")
+
+  // Relationships
+  timesheetEntries  TimesheetEntry[] @relation("UserTimesheets")
+  approvedTimesheets TimesheetEntry[] @relation("ApprovedTimesheets")
+  assignedDiscrepancies Discrepancy[] @relation("AssignedDiscrepancies")
+  workEntries       WorkEntry[] @relation("MechanicWorkEntries")
+  completedWorkEntries WorkEntry[] @relation("CompletedWorkEntries")
+
+  @@map("users")
+}
+
+// ─── Customers ────────────────────────────────────────────────────────────
+
+model Customer {
+  id          String    @id @default(cuid())
+  shopId      String    @map("shop_id")
+  name        String
+  contactName String?   @map("contact_name")
+  email       String?
+  phone       String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?   @map("zip_code")
+  country     String    @default("USA")
+  notes       String?
+  isActive    Boolean   @default(true) @map("is_active")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  shop        Shop      @relation(fields: [shopId], references: [id])
+  aircraft    Aircraft[]
+  workOrders  WorkOrder[]
+
+  @@map("customers")
+}
+
+// ─── Aircraft ─────────────────────────────────────────────────────────────
+
+model Aircraft {
+  id               String    @id @default(cuid())
+  shopId           String    @map("shop_id")
+  nNumber          String    @unique @map("n_number")
+  serialNumber     String?   @map("serial_number")
+  manufacturer     String?
+  model            String?
+  year             Int?
+  typeCertificate  String?   @map("type_certificate")
+  voltage          String?   // 12v, 14v, 24v, 28v
+
+  // FAA Registration
+  registeredOwner  String?   @map("registered_owner")
+  registeredAddress String?  @map("registered_address")
+
+  // Operational
+  baseAirport      String?   @map("base_airport")
+  isActive         Boolean   @default(true) @map("is_active")
+  notes            String?
+  avatarUrl        String?   @map("avatar_url")
+
+  // Foreign keys
+  customerId       String?   @map("customer_id")
+  customer         Customer? @relation(fields: [customerId], references: [id])
+
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  shop             Shop      @relation(fields: [shopId], references: [id])
+  timers           Timer[]
+  equipment        Equipment[]
+  squawks          Squawk[]
+  workOrders       WorkOrder[]
+  logbookEntries   LogbookEntry[]
+  adCompliance     ADCompliance[]
+
+  @@map("aircraft")
+}
+
+// ─── Timers ───────────────────────────────────────────────────────────────
+
+model Timer {
+  id              String    @id @default(cuid())
+  timerType       String    @map("timer_type") // HOBBS, TACH, FLIGHT_HOURS, CYCLES
+  currentValue    Float     @default(0) @map("current_value")
+
+  // Overhaul tracking
+  sinceOverhaul   Float     @default(0) @map("since_overhaul")
+  overhaulLimit   Float?    @map("overhaul_limit")
+  overhaulDueAt   Float?    @map("overhaul_due_at")
+  lastOverhaulDate DateTime? @map("last_overhaul_date")
+  sinceNew        Float     @default(0) @map("since_new")
+
+  // Links
+  aircraftId      String?   @map("aircraft_id")
+  equipmentId     String?   @map("equipment_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  aircraft        Aircraft? @relation(fields: [aircraftId], references: [id])
+  equipment       Equipment? @relation(fields: [equipmentId], references: [id])
+
+  @@map("timers")
+}
+
+// ─── Equipment ────────────────────────────────────────────────────────────
+
+model Equipment {
+  id              String    @id @default(cuid())
+  equipmentType   String    @map("equipment_type") // Engine, Propeller, etc.
+  manufacturer    String?
+  model           String?
+  serialNumber    String?   @map("serial_number")
+  partNumber      String?   @map("part_number")
+  description     String?
+  position        String?   // Left, Right, Center
+
+  // Installation
+  installedDate   DateTime? @map("installed_date")
+  installedHours  Float?    @map("installed_hours")
+
+  isActive        Boolean   @default(true) @map("is_active")
+  notes           String?
+
+  // Foreign key
+  aircraftId      String    @map("aircraft_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  aircraft        Aircraft  @relation(fields: [aircraftId], references: [id])
+  timers          Timer[]
+
+  @@map("equipment")
+}
+
+// ─── Squawks ──────────────────────────────────────────────────────────────
+
+model Squawk {
+  id              String    @id @default(cuid())
+  title           String
+  description     String?
+  status          String    @default("open") // open, in_progress, resolved, deferred
+  severity        String    @default("minor") // minor, major, critical
+  priority        Int       @default(0) // 0=normal, 1=high, 2=urgent
+
+  // Categorization
+  category        String?   // Airframe, Engine, Avionics
+  ataChapter      String?   @map("ata_chapter")
+
+  // Estimates
+  partsNeeded     String?   @map("parts_needed")
+  estimatedCost   Float?    @map("estimated_cost")
+  estimatedHours  Float?    @map("estimated_hours")
+
+  // Assignment
+  reportedBy      String?   @map("reported_by")
+  assignedTo      String?   @map("assigned_to")
+
+  // Resolution
+  resolvedDate    DateTime? @map("resolved_date")
+  resolutionNotes String?   @map("resolution_notes")
+
+  // Foreign keys
+  aircraftId      String    @map("aircraft_id")
+  workOrderId     String?   @map("work_order_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  aircraft        Aircraft  @relation(fields: [aircraftId], references: [id])
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  @@map("squawks")
+}
+
+// ─── Work Orders ──────────────────────────────────────────────────────────
+
+model WorkOrder {
+  id              String    @id @default(cuid())
+  woNumber        String    @unique @map("wo_number")
+  title           String
+  description     String?
+  status          String    @default("draft") // draft, open, in_progress, pending_parts, completed, invoiced, cancelled
+  workType        String?   @map("work_type") // annual, 100hr, unscheduled, squawk
+  priority        Int       @default(0) // 0=normal, 1=high, 2=urgent/AOG
+
+  // Scheduling
+  scheduledStart  DateTime? @map("scheduled_start")
+  scheduledEnd    DateTime? @map("scheduled_end")
+  actualStart     DateTime? @map("actual_start")
+  actualEnd       DateTime? @map("actual_end")
+
+  // Aircraft times
+  hobbsIn         Float?    @map("hobbs_in")
+  tachIn          Float?    @map("tach_in")
+  hobbsOut        Float?    @map("hobbs_out")
+  tachOut         Float?    @map("tach_out")
+
+  // Financials
+  estimatedLabor  Float?    @map("estimated_labor")
+  estimatedParts  Float?    @map("estimated_parts")
+  actualLabor     Float?    @map("actual_labor")
+  actualParts     Float?    @map("actual_parts")
+
+  // Assignment
+  assignedMechanic String?  @map("assigned_mechanic")
+  inspector       String?
+
+  notes           String?
+
+  // Foreign keys
+  aircraftId      String    @map("aircraft_id")
+  customerId      String?   @map("customer_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  aircraft        Aircraft  @relation(fields: [aircraftId], references: [id])
+  customer        Customer? @relation(fields: [customerId], references: [id])
+  squawks         Squawk[]
+  lineItems       WorkOrderItem[]
+  discrepancies   Discrepancy[]
+  timesheetEntries TimesheetEntry[]
+  logbookEntries  LogbookEntry[]
+  adCompliance    ADCompliance[]
+
+  @@map("work_orders")
+}
+
+// ─── Discrepancies (Work Areas within Work Order) ─────────────────────────
+
+model Discrepancy {
+  id              String    @id @default(cuid())
+  workOrderId     String    @map("work_order_id")
+  title           String
+  notesInternal   String?   @map("notes_internal")
+  category        String?
+  mechanicId      String?   @map("mechanic_id")
+  workflowStatus  String    @default("pending") @map("workflow_status") // pending, in_progress, complete
+  estimatedHours  Float?    @map("estimated_hours")
+  estimatedPartsCost Float? @map("estimated_parts_cost")
+  position        Int       @default(0)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id], onDelete: Cascade)
+  mechanic        User?     @relation("AssignedDiscrepancies", fields: [mechanicId], references: [id])
+  workEntries     WorkEntry[]
+  lineItems       WorkOrderItem[]
+
+  @@map("discrepancies")
+}
+
+// ─── Work Entries (Actual work under Discrepancy) ─────────────────────────
+
+model WorkEntry {
+  id              String    @id @default(cuid())
+  discrepancyId   String    @map("discrepancy_id")
+  description     String
+  category        String?   // Airframe, Avionics, Engine, etc.
+  mechanicId      String?   @map("mechanic_id")
+  isComplete      Boolean   @default(false) @map("is_complete")
+  completedAt     DateTime? @map("completed_at")
+  completedById   String?   @map("completed_by_id")
+  timesheetHours  Float     @default(0) @map("timesheet_hours")
+  laborAdjustment Float     @default(0) @map("labor_adjustment")
+  position        Int       @default(0)
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  discrepancy     Discrepancy @relation(fields: [discrepancyId], references: [id], onDelete: Cascade)
+  mechanic        User?     @relation("MechanicWorkEntries", fields: [mechanicId], references: [id])
+  completedBy     User?     @relation("CompletedWorkEntries", fields: [completedById], references: [id])
+  lineItems       WorkOrderItem[]
+
+  @@map("work_entries")
+}
+
+// ─── Work Order Line Items ────────────────────────────────────────────────
+
+model WorkOrderItem {
+  id              String    @id @default(cuid())
+  itemType        String    @map("item_type") // labor, parts, subcontract
+  description     String
+
+  // Parts
+  partNumber      String?   @map("part_number")
+  quantity        Float     @default(1)
+  unitPrice       Float?    @map("unit_price")
+
+  // Labor
+  hours           Float?
+  rate            Float?
+
+  // Status
+  isComplete      Boolean   @default(false) @map("is_complete")
+  completedBy     String?   @map("completed_by")
+  completedAt     DateTime? @map("completed_at")
+
+  notes           String?
+
+  // Foreign keys
+  workOrderId     String    @map("work_order_id")
+  discrepancyId   String?   @map("discrepancy_id")
+  workEntryId     String?   @map("work_entry_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  workOrder       WorkOrder @relation(fields: [workOrderId], references: [id])
+  discrepancy     Discrepancy? @relation(fields: [discrepancyId], references: [id])
+  workEntry       WorkEntry? @relation(fields: [workEntryId], references: [id])
+
+  @@map("work_order_items")
+}
+
+// ─── Parts Catalog ────────────────────────────────────────────────────────
+
+model Part {
+  id              String    @id @default(cuid())
+  shopId          String    @map("shop_id")
+  partNumber      String    @unique @map("part_number")
+  description     String?
+  manufacturer    String?
+  category        String?   // Hardware, Consumable, Rotable
+  unitOfMeasure   String    @default("ea") @map("unit_of_measure")
+  unitPrice       Float     @default(0) @map("unit_price")
+
+  // Stocking
+  minQuantity     Float     @default(0) @map("min_quantity")
+  reorderQuantity Float?    @map("reorder_quantity")
+  preferredVendor String?   @map("preferred_vendor")
+
+  // Tracking
+  isSerialized    Boolean   @default(false) @map("is_serialized")
+  isShelfLife     Boolean   @default(false) @map("is_shelf_life")
+
+  notes           String?
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  shop            Shop      @relation(fields: [shopId], references: [id])
+  inventoryItems  InventoryItem[]
+
+  @@map("parts")
+}
+
+// ─── Inventory Items ──────────────────────────────────────────────────────
+
+model InventoryItem {
+  id              String    @id @default(cuid())
+  partId          String    @map("part_id")
+
+  // Identification
+  serialNumber    String?   @map("serial_number")
+  lotNumber       String?   @map("lot_number")
+  dateCode        String?   @map("date_code")
+
+  // Location
+  location        String?
+
+  // Quantity & Value
+  quantity        Float     @default(0)
+  unitPrice       Float?    @map("unit_price")
+
+  // Condition
+  condition       String    @default("NEW") // NEW, OH, SV, AR
+
+  // Shelf life
+  expirationDate  DateTime? @map("expiration_date")
+
+  // Tracking
+  receivedDate    DateTime? @map("received_date")
+  vendor          String?
+  poNumber        String?   @map("po_number")
+
+  notes           String?
+  isActive        Boolean   @default(true) @map("is_active")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  part            Part      @relation(fields: [partId], references: [id])
+
+  @@map("inventory_items")
+}
+
+// ─── AD Compliance ────────────────────────────────────────────────────────
+
+model ADCompliance {
+  id                  String    @id @default(cuid())
+  aircraftId          String    @map("aircraft_id")
+  adNumber            String    @map("ad_number")
+  adTitle             String?   @map("ad_title")
+
+  // Status
+  status              String    @default("open") // open, complied, not_applicable, recurring
+  complianceDate      DateTime? @map("compliance_date")
+  complianceHours     Float?    @map("compliance_hours")
+  methodOfCompliance  String?   @map("method_of_compliance")
+  workOrderId         String?   @map("work_order_id")
+
+  // Recurring
+  nextDueDate         DateTime? @map("next_due_date")
+  nextDueHours        Float?    @map("next_due_hours")
+  intervalHours       Float?    @map("interval_hours")
+  intervalMonths      Int?      @map("interval_months")
+
+  compliedBy          String?   @map("complied_by")
+  notes               String?
+
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  aircraft            Aircraft  @relation(fields: [aircraftId], references: [id])
+  workOrder           WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  @@unique([aircraftId, adNumber])
+  @@map("ad_compliance")
+}
+
+// ─── Logbook Entries ──────────────────────────────────────────────────────
+
+model LogbookEntry {
+  id              String    @id @default(cuid())
+  entryDate       DateTime  @map("entry_date")
+  logbookType     String?   @map("logbook_type") // Airframe, Engine, Propeller
+  hobbs           Float?
+  tach            Float?
+  description     String
+
+  // Signoff
+  mechanicName    String?   @map("mechanic_name")
+  mechanicCert    String?   @map("mechanic_cert")
+  inspectorName   String?   @map("inspector_name")
+  inspectorCert   String?   @map("inspector_cert")
+
+  // Links
+  aircraftId      String    @map("aircraft_id")
+  workOrderId     String?   @map("work_order_id")
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+
+  // Relationships
+  aircraft        Aircraft  @relation(fields: [aircraftId], references: [id])
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id])
+
+  @@map("logbook_entries")
+}
+
+// ─── Timesheets ───────────────────────────────────────────────────────────
+
+model TimesheetEntry {
+  id              String    @id @default(cuid())
+  userId          String    @map("user_id")
+  shopId          String    @map("shop_id")
+  workOrderId     String?   @map("work_order_id")
+
+  description     String?
+  taskType        String?   @map("task_type") // inspection, repair, install, etc.
+
+  // When
+  workDate        DateTime  @map("work_date")
+  startTime       String?   @map("start_time")
+  endTime         String?   @map("end_time")
+  hours           Float     @default(0)
+
+  // Billing
+  isBillable      Boolean   @default(true) @map("is_billable")
+  rate            Float?
+
+  // Status
+  status          String    @default("pending") // pending, approved, rejected
+  approvedById    String?   @map("approved_by_id")
+  approvedAt      DateTime? @map("approved_at")
+
+  notes           String?
+
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  user            User      @relation("UserTimesheets", fields: [userId], references: [id])
+  shop            Shop      @relation(fields: [shopId], references: [id])
+  workOrder       WorkOrder? @relation(fields: [workOrderId], references: [id])
+  approvedBy      User?     @relation("ApprovedTimesheets", fields: [approvedById], references: [id])
+
+  @@map("timesheet_entries")
+}
