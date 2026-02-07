@@ -1,1 +1,1 @@
-web: npx prisma migrate deploy && npm start
+web: sleep 10 && npx prisma migrate deploy && npm start
