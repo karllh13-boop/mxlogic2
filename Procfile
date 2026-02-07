@@ -1,1 +1,1 @@
-web: sleep 10 && npx prisma migrate deploy && npx tsx prisma/seed.ts && npm start
+web: sleep 10 && npx prisma db push && npx tsx prisma/seed.ts && npm start
