@@ -149,7 +149,7 @@ export default async function PartsPage({
                   >
                     <td className="py-3 px-4">
                       <Link
-                        href={`/parts/${part.id}`}
+                        href={`/parts/${part.id}/edit`}
                         className="font-medium text-primary-600 hover:text-primary-700"
                       >
                         {part.partNumber}

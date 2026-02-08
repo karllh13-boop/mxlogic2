@@ -6,6 +6,7 @@ import {
   ArrowLeft, Edit, ClipboardList, Plane, User, Clock, 
   DollarSign, AlertTriangle, CheckCircle, Plus, Wrench 
 } from "lucide-react"
+import { StatusWorkflow } from "@/components/work-orders/StatusWorkflow"
 
 const statusColors: Record<string, string> = {
   draft: "badge-gray",
@@ -106,10 +107,6 @@ export default async function WorkOrderDetailPage({
             <Edit className="w-4 h-4 mr-2" />
             Edit
           </Link>
-          <button className="btn btn-primary">
-            <CheckCircle className="w-4 h-4 mr-2" />
-            Complete
-          </button>
         </div>
       </div>
 
@@ -155,6 +152,12 @@ export default async function WorkOrderDetailPage({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* Status Workflow */}
+      <div className="card">
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">Status Workflow</h2>
+        <StatusWorkflow workOrderId={workOrder.id} currentStatus={workOrder.status} />
       </div>
 
       {/* Main Grid */}
