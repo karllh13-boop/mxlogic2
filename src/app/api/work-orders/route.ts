@@ -100,6 +100,17 @@ export async function POST(req: NextRequest) {
       },
     })
 
+    // Link squawk to work order if specified
+    if (data.squawkId) {
+      await prisma.squawk.update({
+        where: { id: data.squawkId },
+        data: {
+          workOrderId: workOrder.id,
+          status: "in_progress",
+        },
+      })
+    }
+
     return NextResponse.json(workOrder, { status: 201 })
   } catch (error) {
     console.error("POST /api/work-orders error:", error)

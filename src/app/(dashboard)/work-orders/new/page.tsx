@@ -23,6 +23,7 @@ export default function NewWorkOrderPage() {
   const searchParams = useSearchParams()
   const preselectedAircraft = searchParams.get("aircraft")
   const preselectedCustomer = searchParams.get("customer")
+  const squawkId = searchParams.get("squawk")
   
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -81,6 +82,7 @@ export default function NewWorkOrderPage() {
         ? parseFloat(formData.get("estimatedParts") as string) 
         : null,
       notes: formData.get("notes") || null,
+      squawkId: squawkId || null,
     }
 
     try {
