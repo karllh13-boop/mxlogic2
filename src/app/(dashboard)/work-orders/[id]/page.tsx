@@ -7,6 +7,7 @@ import {
   DollarSign, AlertTriangle, CheckCircle, Plus, Wrench 
 } from "lucide-react"
 import { StatusWorkflow } from "@/components/work-orders/StatusWorkflow"
+import { AddLineItem } from "@/components/work-orders/AddLineItem"
 
 const statusColors: Record<string, string> = {
   draft: "badge-gray",
@@ -36,7 +37,7 @@ export default async function WorkOrderDetailPage({
       aircraft: { shopId },
     },
     include: {
-      aircraft: true,
+      aircraft: { include: { shop: true } },
       customer: true,
       squawks: true,
       discrepancies: {
@@ -182,10 +183,7 @@ export default async function WorkOrderDetailPage({
           <div className="card">
             <div className="card-header mb-4">
               <h2 className="text-lg font-semibold text-gray-900">Work Items</h2>
-              <button className="btn btn-sm btn-secondary">
-                <Plus className="w-4 h-4 mr-1" />
-                Add Item
-              </button>
+              <AddLineItem workOrderId={workOrder.id} shopLaborRate={workOrder.aircraft.shop.laborRate} />
             </div>
             {workOrder.discrepancies.length > 0 ? (
               <div className="space-y-4">
@@ -246,10 +244,7 @@ export default async function WorkOrderDetailPage({
               <div className="text-center py-8">
                 <Wrench className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                 <p className="text-gray-500 mb-4">No work items added yet</p>
-                <button className="btn btn-primary">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add First Item
-                </button>
+                <p className="text-sm text-gray-400">Use the &ldquo;Add Item&rdquo; button above to add labor, parts, or subcontract items.</p>
               </div>
             )}
           </div>
@@ -314,6 +309,30 @@ export default async function WorkOrderDetailPage({
           {/* Financials */}
           <div className="card">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Financials</h2>
+            {/* Line items breakdown */}
+            {workOrder.lineItems.length > 0 && (
+              <div className="space-y-2 mb-4">
+                {workOrder.lineItems.map((li) => (
+                  <div key={li.id} className="flex items-center justify-between text-sm p-2 bg-gray-50 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className={`badge ${
+                        li.itemType === "labor" ? "badge-info" :
+                        li.itemType === "parts" ? "badge-success" : "badge-gray"
+                      }`}>
+                        {li.itemType}
+                      </span>
+                      <span className="text-gray-700 truncate max-w-[150px]">{li.description}</span>
+                    </div>
+                    <span className="font-medium text-gray-900">
+                      {li.itemType === "labor"
+                        ? `${li.hours || 0}h × $${(li.rate || 0).toFixed(0)} = $${((li.hours || 0) * (li.rate || 0)).toFixed(2)}`
+                        : `${li.quantity} × $${(li.unitPrice || 0).toFixed(2)} = $${(li.quantity * (li.unitPrice || 0)).toFixed(2)}`
+                      }
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="space-y-3">
               <div className="flex justify-between">
                 <span className="text-gray-500">Labor ({laborHours.toFixed(1)}h)</span>
