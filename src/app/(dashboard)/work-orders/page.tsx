@@ -2,6 +2,10 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import { Plus, ClipboardList, Search, Filter, Calendar } from "lucide-react"
+import { Pagination } from "@/components/ui/Pagination"
+import { SortableHeader } from "@/components/ui/SortableHeader"
+
+const PAGE_SIZE = 20
 
 const statusColors: Record<string, string> = {
   draft: "badge-gray",
@@ -23,7 +27,7 @@ const workTypeLabels: Record<string, string> = {
 export default async function WorkOrdersPage({
   searchParams,
 }: {
-  searchParams: { q?: string; status?: string; type?: string }
+  searchParams: { q?: string; status?: string; type?: string; page?: string; sort?: string; order?: string }
 }) {
   const session = await auth()
   const shopId = session?.user?.shopId
@@ -32,22 +36,37 @@ export default async function WorkOrdersPage({
     return <div>Error: No shop found</div>
   }
 
-  const { q, status, type } = searchParams
+  const { q, status, type, sort, order } = searchParams
+  const page = parseInt(searchParams.page || "1")
+
+  const where: any = {
+    aircraft: { shopId },
+  }
+  if (status) where.status = status
+  if (type) where.workType = type
+  if (q) {
+    where.OR = [
+      { woNumber: { contains: q } },
+      { title: { contains: q } },
+      { aircraft: { nNumber: { contains: q } } },
+      { customer: { name: { contains: q } } },
+    ]
+  }
+
+  // Count total for pagination
+  const totalCount = await prisma.workOrder.count({ where })
+  const totalPages = Math.ceil(totalCount / PAGE_SIZE)
+
+  // Build orderBy
+  const orderDir: "asc" | "desc" = order === "asc" ? "asc" : "desc"
+  let orderBy: any = [{ priority: "desc" }, { updatedAt: "desc" }]
+  if (sort === "woNumber") orderBy = [{ woNumber: orderDir }]
+  else if (sort === "status") orderBy = [{ status: orderDir }]
+  else if (sort === "updatedAt") orderBy = [{ updatedAt: orderDir }]
+  else if (sort === "title") orderBy = [{ title: orderDir }]
 
   const workOrders = await prisma.workOrder.findMany({
-    where: {
-      aircraft: { shopId },
-      ...(status ? { status } : {}),
-      ...(type ? { workType: type } : {}),
-      ...(q ? {
-        OR: [
-          { woNumber: { contains: q } },
-          { title: { contains: q } },
-          { aircraft: { nNumber: { contains: q } } },
-          { customer: { name: { contains: q } } },
-        ],
-      } : {}),
-    },
+    where,
     include: {
       aircraft: true,
       customer: true,
@@ -58,15 +77,18 @@ export default async function WorkOrdersPage({
         },
       },
     },
-    orderBy: [
-      { priority: "desc" },
-      { updatedAt: "desc" },
-    ],
+    orderBy,
+    skip: (page - 1) * PAGE_SIZE,
+    take: PAGE_SIZE,
   })
 
-  const activeCount = workOrders.filter(
-    wo => ["open", "in_progress", "pending_parts"].includes(wo.status)
-  ).length
+  // Get active count (unfiltered)
+  const activeCount = await prisma.workOrder.count({
+    where: {
+      aircraft: { shopId },
+      status: { in: ["open", "in_progress", "pending_parts"] },
+    },
+  })
 
   return (
     <div className="space-y-6">
@@ -123,18 +145,19 @@ export default async function WorkOrdersPage({
       {/* Work Orders List */}
       <div className="card">
         {workOrders.length > 0 ? (
+          <>
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">WO #</th>
+                  <SortableHeader label="WO #" sortKey="woNumber" currentSort={sort} currentOrder={order} baseUrl="/work-orders" searchParams={{ q, status, type }} className="text-left" />
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Aircraft</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">Title</th>
+                  <SortableHeader label="Title" sortKey="title" currentSort={sort} currentOrder={order} baseUrl="/work-orders" searchParams={{ q, status, type }} className="text-left" />
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Type</th>
                   <th className="text-left py-3 px-4 font-medium text-gray-500">Customer</th>
                   <th className="text-center py-3 px-4 font-medium text-gray-500">Items</th>
-                  <th className="text-center py-3 px-4 font-medium text-gray-500">Status</th>
-                  <th className="text-left py-3 px-4 font-medium text-gray-500">Updated</th>
+                  <SortableHeader label="Status" sortKey="status" currentSort={sort} currentOrder={order} baseUrl="/work-orders" searchParams={{ q, status, type }} className="text-center" />
+                  <SortableHeader label="Updated" sortKey="updatedAt" currentSort={sort} currentOrder={order} baseUrl="/work-orders" searchParams={{ q, status, type }} className="text-left" />
                 </tr>
               </thead>
               <tbody>
@@ -200,6 +223,13 @@ export default async function WorkOrdersPage({
               </tbody>
             </table>
           </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            baseUrl="/work-orders"
+            searchParams={{ q, status, type, sort, order }}
+          />
+          </>
         ) : (
           <div className="text-center py-12">
             <ClipboardList className="w-12 h-12 text-gray-300 mx-auto mb-4" />

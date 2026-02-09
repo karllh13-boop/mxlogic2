@@ -130,3 +130,56 @@ body {
 .badge-gray {
   @apply bg-gray-100 text-gray-800;
 }
+
+/* Print styles */
+@media print {
+  .print\\:hidden {
+    display: none !important;
+  }
+  .print\\:shadow-none {
+    box-shadow: none !important;
+  }
+  .print\\:border-0 {
+    border: none !important;
+  }
+  .print\\:p-0 {
+    padding: 0 !important;
+  }
+  .print\\:max-w-none {
+    max-width: none !important;
+  }
+  body {
+    background: white !important;
+  }
+  .min-h-screen {
+    min-height: auto !important;
+  }
+  /* Hide sidebar and header */
+  .lg\\:fixed {
+    display: none !important;
+  }
+  header {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+  }
+  .lg\\:pl-64 {
+    padding-left: 0 !important;
+  }
+}
+
+/* Line clamp utility */
+.line-clamp-1 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+}
+
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

@@ -13,7 +13,15 @@ import {
   Settings,
   Shield,
   Clock,
+  Boxes,
 } from "lucide-react"
+
+interface NavBadges {
+  openSquawks: number
+  activeWOs: number
+  pendingTimesheets: number
+  openADs: number
+}
 
 interface SidebarProps {
   user: {
@@ -21,23 +29,24 @@ interface SidebarProps {
     shopName?: string
     role?: string
   }
+  badges?: NavBadges
 }
 
 const navigation = [
-  { name: "Dashboard", href: "/dashboard", icon: Home },
-  { name: "Aircraft", href: "/aircraft", icon: Plane },
-  { name: "Customers", href: "/customers", icon: Users },
-  { name: "Squawks", href: "/squawks", icon: AlertTriangle },
-  { name: "Work Orders", href: "/work-orders", icon: ClipboardList },
-  { name: "Parts", href: "/parts", icon: Package },
-  { name: "Inventory", href: "/inventory", icon: Package },
-  { name: "AD Compliance", href: "/compliance", icon: Shield },
-  { name: "Timesheets", href: "/timesheets", icon: Clock },
-  { name: "Reports", href: "/reports", icon: FileText },
-  { name: "Settings", href: "/settings", icon: Settings },
+  { name: "Dashboard", href: "/dashboard", icon: Home, badgeKey: null },
+  { name: "Aircraft", href: "/aircraft", icon: Plane, badgeKey: null },
+  { name: "Customers", href: "/customers", icon: Users, badgeKey: null },
+  { name: "Squawks", href: "/squawks", icon: AlertTriangle, badgeKey: "openSquawks" as const },
+  { name: "Work Orders", href: "/work-orders", icon: ClipboardList, badgeKey: "activeWOs" as const },
+  { name: "Parts", href: "/parts", icon: Package, badgeKey: null },
+  { name: "Inventory", href: "/inventory", icon: Boxes, badgeKey: null },
+  { name: "AD Compliance", href: "/compliance", icon: Shield, badgeKey: "openADs" as const },
+  { name: "Timesheets", href: "/timesheets", icon: Clock, badgeKey: "pendingTimesheets" as const },
+  { name: "Reports", href: "/reports", icon: FileText, badgeKey: null },
+  { name: "Settings", href: "/settings", icon: Settings, badgeKey: null },
 ]
 
-export function Sidebar({ user }: SidebarProps) {
+export function Sidebar({ user, badges }: SidebarProps) {
   const pathname = usePathname()
 
   return (
@@ -63,6 +72,8 @@ export function Sidebar({ user }: SidebarProps) {
         <nav className="flex-1 px-2 py-4 space-y-1 overflow-y-auto">
           {navigation.map((item) => {
             const isActive = pathname === item.href || pathname.startsWith(item.href + "/")
+            const badgeCount = item.badgeKey && badges ? badges[item.badgeKey] : 0
+
             return (
               <Link
                 key={item.name}
@@ -81,7 +92,20 @@ export function Sidebar({ user }: SidebarProps) {
                     ${isActive ? "text-primary-600" : "text-gray-400 group-hover:text-gray-500"}
                   `}
                 />
-                {item.name}
+                <span className="flex-1">{item.name}</span>
+                {badgeCount > 0 && (
+                  <span className={`
+                    ml-auto inline-flex items-center justify-center px-2 py-0.5 text-xs font-bold rounded-full
+                    ${item.badgeKey === "openADs" 
+                      ? "bg-red-100 text-red-700"
+                      : item.badgeKey === "openSquawks"
+                      ? "bg-yellow-100 text-yellow-700"  
+                      : "bg-primary-100 text-primary-700"
+                    }
+                  `}>
+                    {badgeCount}
+                  </span>
+                )}
               </Link>
             )
           })}

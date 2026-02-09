@@ -103,6 +103,12 @@ export default async function WorkOrderDetailPage({
           </div>
         </div>
         <div className="flex gap-3">
+          {(workOrder.status === "completed" || workOrder.status === "invoiced") && (
+            <Link href={`/work-orders/${workOrder.id}/invoice`} className="btn btn-success">
+              <DollarSign className="w-4 h-4 mr-2" />
+              Invoice
+            </Link>
+          )}
           <Link href={`/work-orders/${workOrder.id}/edit`} className="btn btn-secondary">
             <Edit className="w-4 h-4 mr-2" />
             Edit

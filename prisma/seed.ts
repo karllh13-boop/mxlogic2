@@ -4,6 +4,14 @@ import bcrypt from "bcryptjs"
 const prisma = new PrismaClient()
 
 async function main() {
+  // Check if already seeded
+  const existingShop = await prisma.shop.findUnique({ where: { slug: "demo-shop" } })
+  const existingAircraft = await prisma.aircraft.count()
+  if (existingShop && existingAircraft > 2) {
+    console.log("✅ Database already seeded, skipping.")
+    return
+  }
+  
   console.log("🌱 Seeding database...")
 
   // ─── Shop ───────────────────────────────────────────
