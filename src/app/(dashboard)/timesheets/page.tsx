@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/db"
 import Link from "next/link"
 import { Plus, Clock, Search, Calendar, CheckCircle, XCircle, User } from "lucide-react"
+import { ApprovalButtons } from "@/components/timesheets/ApprovalButtons"
 
 const statusColors: Record<string, string> = {
   pending: "badge-warning",
@@ -221,6 +222,9 @@ export default async function TimesheetsPage({
                           <p className="text-sm text-gray-500">
                             ${(ts.hours * ts.rate).toFixed(2)}
                           </p>
+                        )}
+                        {["owner", "admin"].includes(userRole || "") && (
+                          <ApprovalButtons timesheetId={ts.id} currentStatus={ts.status} />
                         )}
                       </div>
                     </div>
