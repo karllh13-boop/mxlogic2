@@ -1,1 +1,1 @@
-web: sleep 10 && npx prisma db push && npx tsx prisma/seed.ts && npm start
+web: npx prisma generate && npx prisma db push --accept-data-loss && npx tsx prisma/seed.ts && npm start
